@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Population Inversion and Laser Action: Interactive Simulator</title>
+<style>
+:root{--bg:#f2f4f7;--panel:#fff;--ink:#17233a;--muted:#55627a;--line:#d5dbe5;--pump:#1f5fbf;--laser:#cf1f2e;--warm:#f0a500;--ok:#0b7a4b;--no:#8a5a00;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1624;--panel:#18223a;--ink:#e8edf6;--muted:#9eaac2;--line:#2b3957;--pump:#6aa4ff;--laser:#ff6b78;--warm:#ffc247;--ok:#4cd697;--no:#ffc247;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1624;--panel:#18223a;--ink:#e8edf6;--muted:#9eaac2;--line:#2b3957;--pump:#6aa4ff;--laser:#ff6b78;--warm:#ffc247;--ok:#4cd697;--no:#ffc247;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:880px;margin:0 auto;padding:28px 18px 48px}
+h1,h2{font-family:Georgia,"Times New Roman",serif;font-weight:700;line-height:1.2}
+h1{font-size:clamp(26px,5vw,38px);margin:0 0 10px}
+h2{font-size:24px;margin:0 0 6px}
+p{margin:0 0 12px;max-width:68ch}
+.lead{color:var(--muted);font-size:17px;margin-bottom:26px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:22px}
+canvas{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:6px;margin:12px 0}
+#simpanel{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:4px 0}
+@media (max-width:680px){#simpanel{grid-template-columns:1fr}}
+label{display:block;font-size:14px;margin:10px 0 2px}
+label b{font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--pump)}
+button{font:inherit;font-size:14px;padding:7px 12px;margin:8px 8px 0 0;border:1px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+button.main{background:var(--ink);color:var(--bg)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--pump);outline-offset:2px}
+.row{display:grid;grid-template-columns:92px 1fr 80px;gap:8px;align-items:center;font-size:14px;margin:9px 0}
+.track{height:16px;background:var(--bg);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.fill{height:100%;width:0;transition:width .25s}
+.val{text-align:right;font-variant-numeric:tabular-nums}
+#status{margin-top:14px;padding:10px 12px;border-left:5px solid;border-radius:4px;background:var(--bg);font-weight:600;font-size:15px}
+#status.ok{border-color:var(--ok);color:var(--ok)}#status.no{border-color:var(--no);color:var(--no)}
+#counts{font-size:15px;font-weight:600;margin:6px 0 0;font-variant-numeric:tabular-nums}
+.small{font-size:14px;color:var(--muted)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Population Inversion and Its Importance in Laser Action</h1>
+<p class="lead">A three-level laser model. Change the pump and decay rates to see how atoms redistribute among E<sub>1</sub>, E<sub>2</sub> and E<sub>3</sub>, then send photons through the gain medium to see what that distribution does to light.</p>
+
+<section id="sim" aria-labelledby="h-sim">
+<h2 id="h-sim">Population distribution simulator</h2>
+<p class="small">Each dot is 10 atoms (1000 in total). Arrows show the steady cycle: pumping E<sub>1</sub>→E<sub>3</sub>, fast relaxation E<sub>3</sub>→E<sub>2</sub>, and the laser transition E<sub>2</sub>→E<sub>1</sub>.</p>
+<canvas id="lv" width="1280" height="660" role="img" aria-label="Animated three-level energy diagram with atoms placed on levels E1, E2 and E3"></canvas>
+<div id="simpanel">
+<div>
+<label for="W">Pump rate W (1→3): <b id="vW"></b> s⁻¹</label><input id="W" type="range" min="0.1" max="10" step="0.1" value="4">
+<label for="S">Relaxation rate S (3→2): <b id="vS"></b> s⁻¹</label><input id="S" type="range" min="2" max="50" step="1" value="10">
+<label for="A">Spontaneous decay A (2→1): <b id="vA"></b> s⁻¹</label><input id="A" type="range" min="0.2" max="5" step="0.1" value="1">
+<button id="p0">No inversion</button><button id="p1">Threshold (W = A)</button><button id="p2" class="main">Inversion</button>
+</div>
+<div id="readout" aria-live="polite">
+<div class="row"><span>E<sub>3</sub></span><div class="track"><div class="fill" id="b3" style="background:var(--pump)"></div></div><span class="val" id="t3"></span></div>
+<div class="row"><span>E<sub>2</sub></span><div class="track"><div class="fill" id="b2" style="background:var(--laser)"></div></div><span class="val" id="t2"></span></div>
+<div class="row"><span>E<sub>1</sub></span><div class="track"><div class="fill" id="b1" style="background:var(--muted)"></div></div><span class="val" id="t1"></span></div>
+<div id="status"></div>
+</div>
+</div>
+</section>
+
+<section id="amp" aria-labelledby="h-amp">
+<h2 id="h-amp">Stimulated emission and photon amplification</h2>
+<p class="small">The gain medium uses the populations above: each lane holds 8 atoms, and the share in E<sub>2</sub> is N<sub>2</sub>/(N<sub>1</sub>+N<sub>2</sub>). A photon meeting an excited atom (filled) may stimulate a copy of itself; one meeting a ground-state atom (hollow) may be absorbed. This is a qualitative demonstration.</p>
+<canvas id="ph" width="1280" height="500" role="img" aria-label="Photons crossing a gain medium of excited and ground-state atoms"></canvas>
+<button id="send" class="main">Send 4 photons</button><button id="avg">Average of 50 runs</button>
+<p id="counts" aria-live="polite">Press “Send 4 photons”.</p>
+<p id="avgout" class="small"></p>
+</section>
+
+<section aria-labelledby="h-model">
+<h2 id="h-model">The model behind the numbers</h2>
+<p>In steady state (ignoring stimulated processes), N<sub>3</sub> = (W/S)·N<sub>1</sub> and N<sub>2</sub> = (W/A)·N<sub>1</sub>, with N<sub>1</sub>+N<sub>2</sub>+N<sub>3</sub> = N. Hence N<sub>2</sub> &gt; N<sub>1</sub> exactly when W &gt; A: pumping must outpace the spontaneous decay of the upper laser level. A large S keeps E<sub>3</sub> almost empty, so nearly every pumped atom reaches E<sub>2</sub>.</p>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s),css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let W=4,S=10,A=1;
+const P=()=>{const n1=1/(1+W/A+W/S);return[n1,W/A*n1,W/S*n1]};
+function counts(){const t=P().map(v=>v*100),c=t.map(Math.floor),r=100-c.reduce((a,b)=>a+b);t.map((v,i)=>[v-c[i],i]).sort((a,b)=>b[0]-a[0]).slice(0,r).forEach(x=>c[x[1]]++);return c}
+function ui(){
+ W=+$('#W').value;S=+$('#S').value;A=+$('#A').value;
+ $('#vW').textContent=W.toFixed(1);$('#vS').textContent=S;$('#vA').textContent=A.toFixed(1);
+ const[n1,n2,n3]=P();
+ [[1,n1],[2,n2],[3,n3]].forEach(([k,v])=>{$('#b'+k).style.width=(v*100)+'%';$('#t'+k).textContent=(v*100).toFixed(1)+'% ('+Math.round(v*1000)+')'});
+ const r=(n2/n1).toFixed(2),st=$('#status');
+ if(n2>n1){st.className='ok';st.innerHTML='Population inversion: N<sub>2</sub> &gt; N<sub>1</sub> (N<sub>2</sub>/N<sub>1</sub> = '+r+')'}
+ else{st.className='no';st.innerHTML='No population inversion: N<sub>2</sub> ≤ N<sub>1</sub> (N<sub>2</sub>/N<sub>1</sub> = '+r+')'}
+ if(!busy)setAtoms();
+}
+['W','S','A'].forEach(id=>$('#'+id).addEventListener('input',ui));
+const preset=w=>{$('#W').value=w;$('#S').value=10;$('#A').value=1;ui()};
+$('#p0').onclick=()=>preset(0.5);$('#p1').onclick=()=>preset(1);$('#p2').onclick=()=>preset(4);
+
+/* ---- energy-level diagram ---- */
+const lv=$('#lv'),c=lv.getContext('2d');c.scale(2,2);
+const LYs={3:60,2:150,1:270},X1=90,X2=430,dots=[];
+for(let i=0;i<100;i++)dots.push({x:0,y:0,init:false});
+function arrow(x,ya,yb,col,t,wave,flux,dash){
+ c.strokeStyle=col;c.fillStyle=col;c.lineWidth=2.5;c.setLineDash(dash?[6,5]:[]);c.beginPath();
+ const s=yb>ya?1:-1;
+ for(let y=ya;s*(yb-y)>12;y+=s*2){const x=x0(wave,y,t)+0;y===ya?c.moveTo(x+arrow.x,y):c.lineTo(x+arrow.x,y)}
+ c.stroke();c.setLineDash([]);
+ c.beginPath();c.moveTo(arrow.x,yb);c.lineTo(arrow.x-6,yb-s*12);c.lineTo(arrow.x+6,yb-s*12);c.fill();
+ if(!reduce)for(let k=0;k<3;k++){const f=((t*(0.1+0.9*flux)+k/3)%1);const y=ya+(yb-ya)*f;c.beginPath();c.arc(arrow.x,y,4,0,7);c.fillStyle=css('--panel');c.fill();c.strokeStyle=col;c.lineWidth=2;c.stroke()}
+}
+const x0=(wave,y,t)=>wave?5*Math.sin(y*0.3-t*8):0;
+function drawLv(t){
+ const ink=css('--ink'),mut=css('--muted'),[n1,n2,n3]=P(),cn=counts();
+ c.clearRect(0,0,640,330);c.font='italic 20px Georgia,serif';c.textBaseline='middle';
+ [3,2,1].forEach(k=>{c.strokeStyle=ink;c.lineWidth=2;c.beginPath();c.moveTo(X1,LYs[k]);c.lineTo(X2,LYs[k]);c.stroke();
+  c.fillStyle=ink;c.font='italic 20px Georgia,serif';c.fillText('E'+'₀₁₂₃'[k],22,LYs[k]);
+  c.font='12px system-ui,sans-serif';c.fillStyle=mut;c.fillText('N'+'₀₁₂₃'[k]+' = '+Math.round([0,n1,n2,n3][k]*1000),X1,LYs[k]+(k===1?32:14))});
+ const lvl=[...Array(cn[0]).fill(1),...Array(cn[1]).fill(2),...Array(cn[2]).fill(3)],idx={1:0,2:0,3:0};
+ const f=reduce?1:0.12;c.fillStyle=ink;
+ dots.forEach((d,i)=>{const k=lvl[i],j=idx[k]++,tx=X1+10+(j%46)*7,ty=LYs[k]-7-Math.floor(j/46)*8;
+  if(!d.init){d.x=tx;d.y=ty;d.init=true}d.x+=(tx-d.x)*f;d.y+=(ty-d.y)*f;
+  c.fillStyle=k===2?css('--warm'):ink;c.strokeStyle=ink;c.lineWidth=1;c.beginPath();c.arc(d.x,d.y,3.2,0,7);c.fill();c.stroke()});
+ const J=W*n1;
+ arrow.x=470;arrow(LYs[1],LYs[1],LYs[3],css('--pump'),t,0,J);
+ arrow.x=535;arrow(LYs[3],LYs[3],LYs[2],mut,t,0,J,true);
+ arrow.x=600;arrow(LYs[2],LYs[2],LYs[1],n2>n1?css('--laser'):mut,t,1,J);
+ c.font='12px system-ui,sans-serif';c.textAlign='center';c.fillStyle=mut;
+ c.fillText('pumping',470,306);c.fillText('fast relaxation',535,320);c.fillText('laser light',600,306);c.textAlign='left';
+}
+
+/* ---- photon amplification ---- */
+const ph=$('#ph'),px=ph.getContext('2d');px.scale(2,2);
+const Q=.35,L=4,M=8,AX=i=>190+i*36,LY=l=>62+l*38;
+let atoms=[],photons=[],flashes=[],busy=false,inN=0,outN=0;
+function setAtoms(){const[n1,n2]=P(),k=Math.round(n2/(n1+n2)*M);atoms=[];
+ for(let l=0;l<L;l++){const a=Array.from({length:M},(_,i)=>i<k?1:0);for(let i=M-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}atoms.push(a)}}
+$('#send').onclick=()=>{if(busy)return;setAtoms();photons=[0,1,2,3].map(l=>({x:30,l,k:0}));inN=4;outN=0;busy=true;$('#counts').textContent='Photons travelling…'};
+function step(dt){
+ for(const p of photons.slice()){p.x+=150*dt;
+  while(!p.dead&&p.k<M&&p.x>=AX(p.k)){const ex=atoms[p.l][p.k];flashes.push({x:AX(p.k),y:LY(p.l),t:0,ex});
+   if(Math.random()<Q){if(ex)photons.push({x:AX(p.k)-10,l:p.l,k:p.k+1});else p.dead=true}p.k++}
+  if(p.x>610&&!p.dead){outN++;p.dead=true}}
+ photons=photons.filter(p=>!p.dead);
+ flashes.forEach(f=>f.t+=dt*2);flashes=flashes.filter(f=>f.t<1);
+ if(busy&&!photons.length){busy=false;const g=outN/inN;
+  $('#counts').textContent='Photons in: '+inN+'  |  out: '+outN+'  |  '+(outN>inN?'net gain ×'+g.toFixed(1):outN<inN?'net loss (×'+g.toFixed(2)+')':'no net change')}
+}
+function drawPh(t){
+ const ink=css('--ink'),mut=css('--muted'),laser=css('--laser');
+ px.clearRect(0,0,640,250);
+ px.fillStyle=css('--bg');px.fillRect(166,34,300,170);px.strokeStyle=mut;px.lineWidth=1;px.strokeRect(166,34,300,170);
+ px.font='12px system-ui,sans-serif';px.fillStyle=mut;px.textBaseline='middle';
+ px.fillText('gain medium',170,220);px.fillText('photons in',20,22);px.fillText('photons out',548,22);
+ px.fillStyle=css('--warm');px.beginPath();px.arc(300,238,5,0,7);px.fill();px.strokeStyle=ink;px.stroke();
+ px.fillStyle=mut;px.fillText('excited atom (E₂)',310,238);px.beginPath();px.arc(440,238,5,0,7);px.stroke();px.fillText('ground-state atom (E₁)',450,238);
+ for(let l=0;l<L;l++)for(let i=0;i<M;i++){px.beginPath();px.arc(AX(i),LY(l),8,0,7);
+  if(atoms[l]&&atoms[l][i]){px.fillStyle=css('--warm');px.fill()}px.strokeStyle=ink;px.lineWidth=1.5;px.stroke()}
+ flashes.forEach(f=>{px.strokeStyle=f.ex?laser:ink;px.globalAlpha=1-f.t;px.lineWidth=2;px.beginPath();px.arc(f.x,f.y,8+f.t*16,0,7);px.stroke();px.globalAlpha=1});
+ px.strokeStyle=laser;px.lineWidth=2.5;
+ photons.forEach(p=>{px.beginPath();for(let xx=p.x-26;xx<=p.x;xx+=2){const y=LY(p.l)+5*Math.sin(xx*.45-t*12);xx===p.x-26?px.moveTo(xx,y):px.lineTo(xx,y)}px.stroke()});
+ const fl=photons.length;px.fillStyle=ink;px.font='13px system-ui,sans-serif';px.fillText('in flight: '+fl,548,44);px.fillText('exited: '+outN,548,62);
+}
+$('#avg').onclick=()=>{const[n1,n2]=P(),k=Math.round(n2/(n1+n2)*M);let tot=0;const R=50;
+ for(let r=0;r<R;r++)for(let l=0;l<L;l++){let n=1;for(let i=0;i<M;i++){let d=0;for(let j=0;j<n;j++)if(Math.random()<Q)d++;n+=i<k?d:-d}tot+=n}
+ const o=tot/R;$('#avgout').textContent='Average of '+R+' runs ('+k+' of '+M+' atoms per lane excited): 4 photons in, '+o.toFixed(1)+' out (×'+(o/4).toFixed(2)+').'};
+
+let last=performance.now();
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;step(dt);drawLv(now/1000);drawPh(now/1000);requestAnimationFrame(frame)}
+ui();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
